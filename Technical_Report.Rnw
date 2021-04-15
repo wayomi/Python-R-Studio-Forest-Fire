@@ -1,0 +1,363 @@
+\documentclass{article}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{graphicx}
+\usepackage{blindtext}
+
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\lstset{frame=tb,
+  language=Java,
+  aboveskip=3mm,
+  belowskip=3mm,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\small\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=3
+}
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+
+\title{Coursework - Data Science Development (CMM535)}
+\author{Wayomi Jayantha (2000829)}
+
+\maketitle
+
+\tableofcontents    
+
+\newpage
+
+\section{Introduction}
+The effects of forest fires have a lasting impact on the environment as it lead to deforestation and global warming, which is also one of its major cause of occurrence. Forest fires are dealt by collecting the satellite images of forest and if there is any emergency caused by the fires then the authorities are notified to mitigate its effects. By the time the authorities get to know about it, the fires would have already caused a lot of damage. Data mining and machine learning techniques can provide an efficient prevention approach where data associated with forests can be used for predicting the eventuality of forest fires. In here I uses the dataset present in the UCI machine learning repository which consists of physical factors and climatic conditions of the Montesinho park situated in Portugal.So in my report I'm going to present the predictions made for linear regression, K-Nearest Neigbhor, Random Forest.
+
+\subsection{Code Block}
+
+Data Source: https://archive.ics.uci.edu/ml/datasets/Forest+Fires.
+
+The dataset consists of the following features: X and Y axes special coordinates within the park, Fine Fuel Moisture Code (FFMC), Duff Moisture Code (DMC), Drought Code (DC) and Initial Spread Index (ISI). The other features used are temperature, relative humidity, wind speed, outside rain and the forest area that is burnt. All these features have been collected on all days for an entire year from January to December.
+
+\begin{figure}[h!]
+\centering
+\includegraphics{data_frame}
+\caption{Sample of Dataset}
+\end{figure}
+
+\begin{itemize}
+\item X - x-axis spatial coordinate within the Montesinho park map: 1 to 9
+\item Y - y-axis spatial coordinate within the Montesinho park map: 2 to 9
+\item month - month of the year: 'jan' to 'dec'
+\item day - day of the week: 'mon' to 'sun'
+\item FFMC - FFMC index from the FWI system: 18.7 to 96.20
+\item DMC - DMC index from the FWI system: 1.1 to 291.3
+\item DC - DC index from the FWI system: 7.9 to 860.6
+\item ISI - ISI index from the FWI system: 0.0 to 56.10
+\item temp - temperature in Celsius degrees: 2.2 to 33.30
+\item RH - relative humidity in %: 15.0 to 100
+\item wind - wind speed in km/h: 0.40 to 9.40
+\item rain - outside rain in mm/m2 : 0.0 to 6.4
+\item area - the burned area of the forest (in ha): 0.00 to 1090.84
+\end{itemize}
+
+\newpage
+
+\section{Data Pre Processing}
+
+Before moving in to the machine learning techniques, Initially have to preprocess the data file. Because there are missing values and also there are some columns we don't need those columns for our analysis.So, in here as the first step I read the csv file using read() method in R. And then I store all the values in the Fire\_Data data frame.
+
+\begin{lstlisting}
+Fire_Data <- read.csv("forestfires.csv",header=TRUE, stringsAsFactors=FALSE )
+\end{lstlisting}
+
+Then I used the subset() method to remove the unnecessary columns in my dataset and I removed empty rows using the following code. Then saved the data in the Fire\_Data data frame.
+
+\begin{lstlisting}
+subset(Fire_Data, select = -c(X,Y,rain))
+Fire_Data[!apply(is.na(Fire_Data) | Fire_Data == "0", 1, all),]
+Fire_Data [ which(Fire_Data$area != '0'),]
+\end{lstlisting}
+
+Next thing I did in order to pre process the data I removed all the duplicate rows based on the day and month for a particular area value.For that I used the distinct() method as follows.
+
+\begin{lstlisting}
+distinct(Fire_Data$day, Fire_Data$month,Fire_Data$area, .keep_all = TRUE)
+\end{lstlisting}
+
+Finally, using the write() function, I wrote all tha data into a new csv file and now in the new file I have 207 rows with 10 columns.Now my new file name is ForesetFire\_Cleaned. from now onwards to deal with machine learning techniques I'm going to use the data in this file.
+
+\begin{lstlisting}
+write.csv(Fire_Data, file = 'ForsetFire_cleaned.csv', row.names = FALSE)
+\end{lstlisting}
+
+\begin{lstlisting}
+Fire_Data <- read.csv('ForsetFire_cleaned.csv',header=TRUE, stringsAsFactors=FALSE )
+dim(Fire_Data)
+\end{lstlisting}
+
+Now we check whether there are missing values in the dataset.From the output you can see that there aren't any missing values.And from the second line of code we check the rows with area '0' and you can see that is also zero.
+<<eval=true, warning=FALSE, echo=true>>=
+Fire_Data <- read.csv('ForsetFire_cleaned.csv',header=TRUE, stringsAsFactors=FALSE )
+sum(is.na(Fire_Data))
+length(which(Fire_Data$area==0))
+@
+
+
+<<eval=true, warning=FALSE, echo=false>>=
+Fire_Data <- read.csv('ForsetFire_cleaned.csv',header=TRUE, stringsAsFactors=FALSE )
+
+Fire_Data$month <- as.numeric(as.factor(Fire_Data$month))
+Fire_Data$day <- as.numeric(as.factor(Fire_Data$day))
+
+set.seed(100)  # setting seed to reproduce results of random sampling
+trainingRowIndex <- sample(1:nrow(Fire_Data), 0.8*nrow(Fire_Data)) 
+trainingData <- Fire_Data[trainingRowIndex, ]  # training data
+testData  <- Fire_Data[-trainingRowIndex, ]   # test data
+@
+
+\newpage
+
+\section{Exploratory Data Analysis}
+Now we are going to see the correlation between these variables.In here,both the month and day variables are currently strings so, want to convert them into numeric values to enable easier modelling and visualization.
+
+\begin{figure}[h!]
+\centering
+\includegraphics{corplot}
+\caption{Correlation Matrix between Predictor and Outcome variables}
+\end{figure}
+
+In our correlation plot,Positive correlations between FFMC, temp, DCM and DC.For Further better visualization I plot the 10 predictors over the area. Following Figure shows the correlation values.
+
+\begin{lstlisting}
+par(mfrow=(c(3,3)))
+plot(x= Fire_Data$area, y = Fire_Data$month,xlab='Area', ylab = 'Month', main = paste0('Area Vs Month correlation = ',round(cor(Fire_Data$area,Fire_Data$month),2)))
+plot(x= Fire_Data$area, y = Fire_Data$day,xlab='Area', ylab = 'Day',main = paste0('Area Vs Day correlation = ',round(cor(Fire_Data$area,Fire_Data$day),2)))
+plot(x= Fire_Data$area, y = Fire_Data$FFMC,xlab='Area', ylab = 'FFMC', main = paste0('Area Vs FFMC correlation = ',round(cor(Fire_Data$area,Fire_Data$FFMC),2)))
+plot(x= Fire_Data$area, y = Fire_Data$DMC,xlab='Area', ylab = 'DMC', main = paste0('Area Vs DMC correlation = ',round(cor(Fire_Data$area,Fire_Data$DMC),2)))
+plot(x= Fire_Data$area, y = Fire_Data$DC,xlab='Area', ylab = 'DC',main = paste0('Area Vs DC correlation = ',round(cor(Fire_Data$area,Fire_Data$DC),2)))
+plot(x= Fire_Data$area, y = Fire_Data$ISI,xlab='Area', ylab = 'ISI',main = paste0('Area Vs ISI correlation = ',round(cor(Fire_Data$area,Fire_Data$ISI),2)))
+plot(x= Fire_Data$area, y = Fire_Data$temp,xlab='Area', ylab = 'temp', main = paste0('Area Vs temp correlation = ',round(cor(Fire_Data$area,Fire_Data$temp),2)))
+plot(x= Fire_Data$area, y = Fire_Data$RH,xlab='Area', ylab = 'RH', main = paste0('Area Vs RH correlation = ',round(cor(Fire_Data$area,Fire_Data$RH),2)))
+plot(x= Fire_Data$area, y = Fire_Data$wind,xlab='Area', ylab = 'Wind', main = paste0('Area Vs wind correlation = ',round(cor(Fire_Data$area,Fire_Data$wind),2)))
+\end{lstlisting}
+
+\begin{figure}[h!]
+\centering
+\includegraphics{cor_bar_plot}
+\caption{Correlation between target variable and dependent variables}
+\end{figure}
+
+So, from the above chart we can conclude that FFMC, DMC, temp and DC variables are having the positive correlation withe area. From that result I decided to work with above 4 variables.
+
+\begin{lstlisting}
+
+set.seed(100)  
+trainingRowIndex <- sample(1:nrow(Fire_Data), 0.8*nrow(Fire_Data))  
+trainingData <- Fire_Data[trainingRowIndex, ]  
+testData  <- Fire_Data[-trainingRowIndex, ] 
+
+\end{lstlisting}
+
+In the above step I split my fire data set in to test and train in order to use the training set(trainingData) to run the model and test set(testData) for the validation of the model. From here onwards I use trainingData for the implementation and testData for the testing session of the model.
+
+\newpage
+
+\section{Performance Metrics}
+
+In my research work as performance metrics I use the followings,
+
+\begin{enumerate}
+\item Root Mean Square Error - RMSE
+\item Residual Standard Error
+\item Adjusted R-squared
+\item Accuracy
+\end{enumerate}
+ 
+\subsection{Root Mean Square Error - RMSE}
+
+Root Mean Square Error (RMSE) between sim and obs, in the same units of sim and obs, with treatment of missing values.RMSE gives the standard deviation of the model prediction error. A smaller value indicates better model performance.
+
+\subsection{Residual Standard Error}
+
+Residual Standard Error is measure of the quality of a linear regression fit. Theoretically, every linear model is assumed to contain an error term E. Due to the presence of this error term, we are not capable of perfectly predicting our response variable (area) from the predictors. The Residual Standard Error is the average amount that the response (area) will deviate from the true regression line.
+
+\subsection{Adjusted R-squared}
+
+The R-squared (R2) statistic provides a measure of how well the model is fitting the actual data. It takes the form of a proportion of variance. R2 is a measure of the linear relationship between our predictor variables and target variable (area).
+
+\subsection {Accuracy}
+
+Accuracy returns range of summary measures of the forecast accuracy.  
+
+\newpage
+
+\section{Machine Learning Techniques}
+
+\subsection {Linear regression}
+
+As I mentioned in the EDA there is a positive correlation between FFMC, DMC, DC and temp. So in my research work I'm going to predict the burned area. 
+
+Here I applied the linear regression for the training dataset, the code and summary of the model was as follows.
+
+\begin{lstlisting}
+model <- lm(area ~ temp+FFMC+DC+DMC+wind, data=trainingData)
+outcome1 <- summary(model)
+
+PredArea <- predict(model, testData)
+actuals_preds <- data.frame(cbind(actuals=testData$area, predicteds=PredArea)) 
+accuracy <- mean(apply(actuals_preds, 1, min) / apply(actuals_preds, 1, max))
+\end{lstlisting}
+
+<<eval=TRUE, warning=FALSE, echo=FALSE>>=
+library(caret)
+library(grDevices)
+library(leaps)
+library(relaimpo)
+library(corrplot)
+library(car)
+library(DAAG)
+library(ISLR)
+model1 <- lm(area ~ temp+FFMC+DC+DMC, data=trainingData)
+outcome1 <- summary(model1)
+
+PredArea1 <- predict(model1, testData)
+actuals_preds <- data.frame(cbind(actuals=testData$temp, predicteds=PredArea1)) 
+accuracy1 <- mean(apply(actuals_preds, 1, min) / apply(actuals_preds, 1, max)) 
+
+influencePlot(model1,id.n=5)
+
+# Remove the 2 outliers from the data
+trainingData <- trainingData[-which(row.names(trainingData) %in% c(101,210,186,62)),]
+
+model2 <- lm(area ~ temp+FFMC+DC+DMC, data=trainingData)
+outcome2 <- summary(model2)
+
+PredArea2 <- predict(model2, testData)
+actuals_preds <- data.frame(cbind(actuals=testData$temp, predicteds=PredArea2)) 
+accuracy2 <- mean(apply(actuals_preds, 1, min) / apply(actuals_preds, 1, max)) 
+@
+
+<<eval=TRUE, warning=FALSE, echo=FALSE>>=
+outcome1
+print('Accuracy of the model')
+accuracy1
+@
+
+In there R-squared: -0.007743, RMSE is 0.01569. To get the accuracy of the model I used the following lines of code, for that test dataset was used. Here the accuracy was 72.73 Then to improve the model little more I removed all the outliers.To visualize the outliers, I used the influencePlot() method in 'car' library and follow is the visualization of the outliers.
+
+\begin{lstlisting}
+influencePlot(model,id.n=5)
+
+trainingData <- trainingData[-which(row.names(trainingData) %in% c(101,210,186,62)),]
+\end{lstlisting}
+
+\begin{figure}[h!]
+\centering
+\includegraphics{outliers}
+\caption{Outliers of the Dataset}
+\end{figure}
+
+As you can see in the above figure we should remove the outlier to get the better accuracy in the model.In order to remove the outliers I used the following line of code. Finally, after removing the outliers again I run the full model. Then I got the following output. Now the accuracy is 81.32. 
+
+
+<<eval=TRUE, warning=FALSE, echo=FALSE>>=
+outcome2
+print('Accuracy of the model')
+accuracy2
+@
+
+In the final model summary you can see that the value of R squred has been increased from 0.01 which means in the model area value can be explained by the other variables.
+
+\subsection{Random Forest}
+
+Random forest algorithm is a supervised classification and regression algorithm. As the name suggests, this algorithm randomly creates a forest with several trees.
+
+Generally, the more trees in the forest the more robust the forest looks like. Similarly, in the random forest classifier, the higher the number of trees in the forest, greater is the accuracy of the results.
+
+In here we are dealing with a regression so,the target variable is converted to do the regression using the factor() function in R. The following line of codes shows how I ran the model. In there I used cross validation with 10 folds. By using the trainControl() function I ran the cross-validation with 10 folds (number = folds).
+
+\begin{lstlisting}
+ctrl <- trainControl(method='cv',number=10)
+rf.Fit <- train(area ~ temp+FFMC+DC+DMC+wind, data = trainingData, method='rf', trControl = ctrl)
+\end{lstlisting}
+<<eval=TRUE, warning=FALSE, echo=FALSE>>=
+ctrl <- trainControl(method='cv',number=10)
+rf.Fit <- train(area ~ temp+FFMC+DC+DMC, data = trainingData, method='rf', trControl = ctrl)
+
+PredArea <- predict(rf.Fit, testData)
+actuals_preds <- data.frame(cbind(actuals=testData$temp, predicteds=PredArea)) 
+
+rf.accuracy <- mean(apply(actuals_preds, 1, min) / apply(actuals_preds, 1, max)) 
+@
+
+<<eval=TRUE, warning=FALSE, echo=FALSE>>=
+print('Summary')
+rf.Fit
+print('Accuracy of the model,')
+rf.accuracy
+@
+
+
+From the summary of the model you can see the RMSE, R squared and MAE which are the performance metrics which I'm going to evaluate is lower and the accuracy of the model is 67.48. 
+
+\subsection {K-Nearest Neighbors}
+
+KNN can be used for both classification and regression problems. It is more widely used in classification problems in the industry,But here we use for the regression. K nearest neighbors is a simple algorithm that stores all available cases and classifies new cases by a majority vote of its k neighbors. The case being assigned to the class is most common amongst its K nearest neighbors measured by a distance function.
+
+In here also I used cross-validation which is having 10 folds. Then I applied the KNN for the training data set where FFMC, DC, DMC and temp are dependent variables. After that I test the predicted output of the model. 
+
+\begin{lstlisting}
+ctrl <- trainControl(method='cv',number=10)
+knn.Fit <- train(area ~ temp+FFMC+DC+DMC, data = trainingData, method='knn', trControl = ctrl)
+
+PredArea <- predict(knn.Fit, testData)
+actuals_preds <- data.frame(cbind(actuals=testData$temp, predicteds=PredArea)) 
+knn.accuracy <- mean(apply(actuals_preds, 1, min) / apply(actuals_preds, 1, max)) 
+\end{lstlisting}
+
+<<eval=TRUE, warning=FALSE, echo=FALSE>>=
+library(caret)
+library(e1071)
+ctrl <- trainControl(method='cv',number=10)
+knn.Fit <- train(area ~ temp+FFMC+DC+DMC, data = trainingData, method='knn', trControl = ctrl)
+
+PredArea <- predict(knn.Fit, testData)
+actuals_preds <- data.frame(cbind(actuals=testData$temp, predicteds=PredArea)) 
+knn.accuracy <- mean(apply(actuals_preds, 1, min) / apply(actuals_preds, 1, max)) 
+@
+
+<<eval=TRUE, warning=FALSE, echo=FALSE>>=
+knn.Fit
+print('Accuracy of the model,')
+knn.accuracy
+@
+In here also we can see the accuracy as 60.01.
+
+\section{Conclusion}
+
+As I explained in the EDA the best features or variables are FFMC, DMC, DC and temp. So from the begin to do this analysis of burned area I used those dependent variables. Then I applied linear regression, Random Forest and KNN to the training dataset and I kept the test dataset for the validation of the predicted outputs. For all the techniques as training controller I used cros-validation with 10 folds in each. In the implementation you can see it. Then to evaluate the performance of the model I used 3 metrics basically. Following table shows the analysis of metrics.
+
+\begin{table}[ht]
+\begin{center}
+\begin{tabular}{lrrrrr}
+  \hline
+ ML Technique & Accuracy & RMSE & R-Squared) \\ 
+  \hline
+Linear Regression       & 81.32\% & 37.25 & -0.013 \\ 
+k-Nearest Neigbor       & 60.01\% & 34.19 & 0.050 \\ 
+Random Forest           & 67.48\% & 36.85 & 0.025 \\ 
+   \hline
+\end{tabular}
+\end{center}
+\end{table}
+
+As mentioned above, the table represents the analysis of performace metrics (Accuracy, RMSE, R-Squared) for each machine learning technique which I used for the regression. As you can see more accuracy is given from the linear regression while the Residual errors of the linear regression is lower. In KNN and RF compare to the linear regression error is high and the accuracy is lower. So from my research work I conclude that for the forest fire dataset the best fitted model is the model generated fro the linear regression which having a high accuracy.
+
+\end{document}
